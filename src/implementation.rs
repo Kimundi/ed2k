@@ -9,15 +9,6 @@ const CHUNK_SIZE: usize = 9728000;
 type Array<T> = GenericArray<u8, T>;
 
 #[derive(Default, Debug, Clone)]
-struct ChunkHasher(Md4);
-impl ChunkHasher {
-    fn digest_reset(&mut self, data: &[u8]) -> Array<U16> {
-        self.0.update(data);
-        self.0.finalize_fixed_reset()
-    }
-}
-
-#[derive(Default, Debug, Clone)]
 struct ChunkList {
     hasher: Md4,
     first_chunk: Array<U16>,
@@ -64,8 +55,8 @@ pub struct RedBlue;
 
 #[derive(Debug, Clone)]
 pub struct Ed2kState {
-    chunk_hasher: ChunkHasher,
-    chunk: Vec<u8>,
+    chunk_hasher: Md4,
+    chunk_len: usize,
     chunk_list: ChunkList,
 }
 
@@ -83,7 +74,7 @@ where
         Self {
             state: Ed2kState {
                 chunk_hasher: Default::default(),
-                chunk: Vec::with_capacity(CHUNK_SIZE),
+                chunk_len: 0,
                 chunk_list: Default::default(),
             },
             _color: Default::default(),
@@ -97,12 +88,13 @@ where
 {
     fn update(&mut self, mut data: &[u8]) {
         while !data.is_empty() {
-            let free = CHUNK_SIZE - self.state.chunk.len();
+            let free = CHUNK_SIZE - self.state.chunk_len;
             let data_write_len = data.len().min(free);
             let data_write;
             (data_write, data) = data.split_at(data_write_len);
-            self.state.chunk.extend(data_write);
-            if self.state.chunk.len() == CHUNK_SIZE {
+            self.state.chunk_hasher.update(data_write);
+            self.state.chunk_len += data_write.len();
+            if self.state.chunk_len == CHUNK_SIZE {
                 self.state.hash_chunk();
             }
         }
@@ -111,9 +103,9 @@ where
 
 impl Ed2kState {
     fn hash_chunk(&mut self) {
-        let hash = self.chunk_hasher.digest_reset(&self.chunk);
+        let hash = self.chunk_hasher.finalize_fixed_reset();
+        self.chunk_len = 0;
         self.chunk_list.add_chunk(&hash);
-        self.chunk.clear();
     }
 }
 
@@ -140,7 +132,8 @@ where
     C: Ed2kColor,
 {
     fn reset(&mut self) {
-        self.state.chunk.clear();
+        self.state.chunk_hasher.reset();
+        self.state.chunk_len = 0;
         self.state.chunk_list.reset();
     }
 }
@@ -194,7 +187,7 @@ impl Ed2kColor for Blue {
         // common case: input data was more than a chunk, and
         // ends between two chunk boundaries.
         // state: |####|..|##> |
-        if !state.chunk.is_empty() {
+        if state.chunk_len != 0 {
             state.hash_chunk();
             state.chunk_list.copy_list_hash_reset(out);
             return;
@@ -230,7 +223,7 @@ impl Ed2kColor for RedBlue {
         // common case: input data was more than a chunk, and
         // ends between two chunk boundaries.
         // state: |####|..|##> |
-        if !state.chunk.is_empty() {
+        if state.chunk_len != 0 {
             state.hash_chunk();
             state.chunk_list.copy_list_hash_reset(red_out);
             blue_out.copy_from_slice(&red_out[..]);
