@@ -1,3 +1,5 @@
+//! Implementation details
+
 use digest::{
     generic_array::{ArrayLength, GenericArray},
     typenum::{U16, U32},
@@ -39,27 +41,42 @@ impl ChunkList {
     }
 }
 
+/// Abstraction over the ED2K hash flavor
 pub trait Ed2kColor: Sized + Default {
+    /// Size of the output hash
     type OutputSize: ArrayLength<u8> + 'static;
+    /// Flavor-specific finalization of the hash state
     fn finalize_ref(state: &mut Ed2kState, out: &mut Array<Self::OutputSize>);
 }
 
+/// The old, "buggy" ED2K hashing algorithm. See crate docs for more details.
 #[derive(Default, Debug)]
 pub struct Red;
 
+/// The new, "fixed" ED2K hashing algorithm. See crate docs for more details.
 #[derive(Default, Debug)]
 pub struct Blue;
 
+/// The `Red` hash concatenated with the `Blue` hash.
+/// See crate docs for more details.
 #[derive(Default, Debug)]
 pub struct RedBlue;
 
+/// Internal hash state
 #[derive(Debug, Clone)]
 pub struct Ed2kState {
+    /// Hasher for the current chunk
     chunk_hasher: Md4,
+    /// Length of the currently hashed bytes of the chunk
     chunk_len: usize,
+    /// List of chunk hashes
     chunk_list: ChunkList,
 }
 
+/// ED2K hash algorithm implementation. This implements all the relevant
+/// traits from the `digest` crate to be usable as a hasher.
+///
+/// The concrete ED2K hash this produces depends on the type parameter `C`.
 #[derive(Debug, Clone)]
 pub struct Ed2kImpl<C> {
     state: Ed2kState,

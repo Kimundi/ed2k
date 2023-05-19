@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![warn(missing_docs)]
 
 use crate::implementation::{Blue, Ed2kImpl, Red, RedBlue};
 
