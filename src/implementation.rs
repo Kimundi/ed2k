@@ -10,37 +10,6 @@ use md4::Md4;
 const CHUNK_SIZE: usize = 9728000;
 type Array<T> = GenericArray<u8, T>;
 
-#[derive(Default, Debug, Clone)]
-struct ChunkList {
-    hasher: Md4,
-    first_chunk: Array<U16>,
-    chunk_counter: u64,
-}
-impl ChunkList {
-    fn add_chunk(&mut self, hash: &Array<U16>) {
-        if self.chunk_counter == 0 {
-            self.first_chunk.copy_from_slice(hash);
-        }
-        self.chunk_counter += 1;
-        self.hasher.update(hash);
-    }
-    fn reset(&mut self) {
-        self.hasher.reset();
-        self.chunk_counter = 0;
-        self.first_chunk.fill(0);
-    }
-    fn chunk_counter(&self) -> u64 {
-        self.chunk_counter
-    }
-    fn copy_first_chunk(&self, out: &mut Array<U16>) {
-        debug_assert!(self.chunk_counter > 0);
-        out.copy_from_slice(&self.first_chunk);
-    }
-    fn copy_list_hash_reset(&mut self, out: &mut Array<U16>) {
-        self.hasher.finalize_into_reset(out);
-    }
-}
-
 /// Abstraction over the ED2K hash flavor
 pub trait Ed2kColor: Sized + Default {
     /// Size of the output hash
@@ -65,10 +34,8 @@ pub struct RedBlue;
 /// Internal hash state
 #[derive(Debug, Clone)]
 pub struct Ed2kState {
-    /// Hasher for the current chunk
-    chunk_hasher: Md4,
-    /// Length of the currently hashed bytes of the chunk
-    chunk_len: usize,
+    /// Current chunk
+    chunk: Chunk,
     /// List of chunk hashes
     chunk_list: ChunkList,
 }
@@ -90,8 +57,7 @@ where
     fn default() -> Self {
         Self {
             state: Ed2kState {
-                chunk_hasher: Default::default(),
-                chunk_len: 0,
+                chunk: Default::default(),
                 chunk_list: Default::default(),
             },
             _color: Default::default(),
@@ -105,13 +71,12 @@ where
 {
     fn update(&mut self, mut data: &[u8]) {
         while !data.is_empty() {
-            let free = CHUNK_SIZE - self.state.chunk_len;
+            let free = self.state.chunk.remaining();
             let data_write_len = data.len().min(free);
             let data_write;
             (data_write, data) = data.split_at(data_write_len);
-            self.state.chunk_hasher.update(data_write);
-            self.state.chunk_len += data_write.len();
-            if self.state.chunk_len == CHUNK_SIZE {
+            self.state.chunk.update(data_write);
+            if self.state.chunk.remaining() == 0 {
                 self.state.hash_chunk();
             }
         }
@@ -120,8 +85,7 @@ where
 
 impl Ed2kState {
     fn hash_chunk(&mut self) {
-        let hash = self.chunk_hasher.finalize_fixed_reset();
-        self.chunk_len = 0;
+        let hash = self.chunk.finalize_reset();
         self.chunk_list.add_chunk(&hash);
     }
 }
@@ -149,8 +113,7 @@ where
     C: Ed2kColor,
 {
     fn reset(&mut self) {
-        self.state.chunk_hasher.reset();
-        self.state.chunk_len = 0;
+        self.state.chunk.reset();
         self.state.chunk_list.reset();
     }
 }
@@ -204,7 +167,7 @@ impl Ed2kColor for Blue {
         // common case: input data was more than a chunk, and
         // ends between two chunk boundaries.
         // state: |####|..|##> |
-        if state.chunk_len != 0 {
+        if state.chunk.len() != 0 {
             state.hash_chunk();
             state.chunk_list.copy_list_hash_reset(out);
             return;
@@ -240,7 +203,7 @@ impl Ed2kColor for RedBlue {
         // common case: input data was more than a chunk, and
         // ends between two chunk boundaries.
         // state: |####|..|##> |
-        if state.chunk_len != 0 {
+        if state.chunk.len() != 0 {
             state.hash_chunk();
             state.chunk_list.copy_list_hash_reset(red_out);
             blue_out.copy_from_slice(&red_out[..]);
@@ -265,5 +228,64 @@ impl Ed2kColor for RedBlue {
         // we can just hash it.
         state.hash_chunk();
         state.chunk_list.copy_list_hash_reset(red_out);
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+struct ChunkList {
+    hasher: Md4,
+    first_chunk: Array<U16>,
+    chunk_counter: u64,
+}
+impl ChunkList {
+    fn add_chunk(&mut self, hash: &Array<U16>) {
+        if self.chunk_counter == 0 {
+            self.first_chunk.copy_from_slice(hash);
+        }
+        self.chunk_counter += 1;
+        self.hasher.update(hash);
+    }
+    fn reset(&mut self) {
+        self.hasher.reset();
+        self.chunk_counter = 0;
+        self.first_chunk.fill(0);
+    }
+    fn chunk_counter(&self) -> u64 {
+        self.chunk_counter
+    }
+    fn copy_first_chunk(&self, out: &mut Array<U16>) {
+        debug_assert!(self.chunk_counter > 0);
+        out.copy_from_slice(&self.first_chunk);
+    }
+    fn copy_list_hash_reset(&mut self, out: &mut Array<U16>) {
+        self.hasher.finalize_into_reset(out);
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+struct Chunk {
+    /// Hasher for the current chunk
+    hasher: Md4,
+    /// Length of the currently hashed bytes of the chunk
+    len: usize,
+}
+impl Chunk {
+    fn len(&self) -> usize {
+        self.len
+    }
+    fn remaining(&self) -> usize {
+        CHUNK_SIZE - self.len
+    }
+    fn update(&mut self, data: &[u8]) {
+        self.hasher.update(data);
+        self.len += data.len();
+    }
+    fn reset(&mut self) {
+        self.hasher.reset();
+        self.len = 0;
+    }
+    fn finalize_reset(&mut self) -> Array<U16> {
+        self.len = 0;
+        self.hasher.finalize_fixed_reset()
     }
 }
