@@ -54,6 +54,7 @@ impl<C> Default for Ed2kImpl<C>
 where
     C: Ed2kColor,
 {
+    #[inline]
     fn default() -> Self {
         Self {
             state: Ed2kState {
@@ -69,6 +70,7 @@ impl<C> Update for Ed2kImpl<C>
 where
     C: Ed2kColor,
 {
+    #[inline]
     fn update(&mut self, mut data: &[u8]) {
         while !data.is_empty() {
             let free = self.state.chunk.remaining();
@@ -84,6 +86,7 @@ where
 }
 
 impl Ed2kState {
+    #[inline]
     fn hash_chunk(&mut self) {
         let hash = self.chunk.finalize_reset();
         self.chunk_list.add_chunk(&hash);
@@ -94,6 +97,7 @@ impl<C> FixedOutput for Ed2kImpl<C>
 where
     C: Ed2kColor,
 {
+    #[inline]
     fn finalize_into(mut self, out: &mut Array<Self::OutputSize>) {
         C::finalize_ref(&mut self.state, out)
     }
@@ -112,6 +116,7 @@ impl<C> Reset for Ed2kImpl<C>
 where
     C: Ed2kColor,
 {
+    #[inline]
     fn reset(&mut self) {
         self.state.chunk.reset();
         self.state.chunk_list.reset();
@@ -122,6 +127,7 @@ impl<C> FixedOutputReset for Ed2kImpl<C>
 where
     C: Ed2kColor,
 {
+    #[inline]
     fn finalize_into_reset(&mut self, out: &mut Array<Self::OutputSize>) {
         C::finalize_ref(&mut self.state, out);
         self.reset();
@@ -130,6 +136,7 @@ where
 
 impl Ed2kColor for Red {
     type OutputSize = U16;
+    #[inline]
     fn finalize_ref(state: &mut Ed2kState, out: &mut Array<U16>) {
         // simple case: input data was less than a chunk.
         // state: |##> |
@@ -155,6 +162,7 @@ impl Ed2kColor for Red {
 
 impl Ed2kColor for Blue {
     type OutputSize = U16;
+    #[inline]
     fn finalize_ref(state: &mut Ed2kState, out: &mut Array<U16>) {
         // simple case: input data was less than a chunk.
         // state: |##> |
@@ -185,6 +193,7 @@ impl Ed2kColor for Blue {
 
 impl Ed2kColor for RedBlue {
     type OutputSize = U32;
+    #[inline]
     fn finalize_ref(state: &mut Ed2kState, out: &mut Array<U32>) {
         // split the output array into two parts
         let (red_out, blue_out) = out.split_at_mut(16);
@@ -238,6 +247,7 @@ struct ChunkList {
     chunk_counter: u64,
 }
 impl ChunkList {
+    #[inline]
     fn add_chunk(&mut self, hash: &Array<U16>) {
         if self.chunk_counter == 0 {
             self.first_chunk.copy_from_slice(hash);
@@ -245,18 +255,22 @@ impl ChunkList {
         self.chunk_counter += 1;
         self.hasher.update(hash);
     }
+    #[inline]
     fn reset(&mut self) {
         self.hasher.reset();
         self.chunk_counter = 0;
         self.first_chunk.fill(0);
     }
+    #[inline]
     fn chunk_counter(&self) -> u64 {
         self.chunk_counter
     }
+    #[inline]
     fn copy_first_chunk(&self, out: &mut Array<U16>) {
         debug_assert!(self.chunk_counter > 0);
         out.copy_from_slice(&self.first_chunk);
     }
+    #[inline]
     fn copy_list_hash_reset(&mut self, out: &mut Array<U16>) {
         self.hasher.finalize_into_reset(out);
     }
@@ -270,20 +284,25 @@ struct Chunk {
     len: usize,
 }
 impl Chunk {
+    #[inline]
     fn len(&self) -> usize {
         self.len
     }
+    #[inline]
     fn remaining(&self) -> usize {
         CHUNK_SIZE - self.len
     }
+    #[inline]
     fn update(&mut self, data: &[u8]) {
         self.hasher.update(data);
         self.len += data.len();
     }
+    #[inline]
     fn reset(&mut self) {
         self.hasher.reset();
         self.len = 0;
     }
+    #[inline]
     fn finalize_reset(&mut self) -> Array<U16> {
         self.len = 0;
         self.hasher.finalize_fixed_reset()
