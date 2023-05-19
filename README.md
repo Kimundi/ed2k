@@ -29,3 +29,22 @@ This crate implements both forms, as well as an efficient way to compute both at
 - Ed2k "RedBlue": This is just the "Red" hash concatenated with the "Blue" hash.
   This exist as a convenient hack to make use of the same hashing APIs while
   efficentily computing both ED2K hash flavors at once.
+
+# Example
+
+```
+use digest::Digest;
+use ed2k::{Ed2k, Ed2kRed, Ed2kBlue};
+
+// Compute a ED2K hash.
+let hash = Ed2k::digest(b"hello world");
+assert_eq!(format!("{hash:x}"), "aa010fbc1d14c795d86ef98c95479d17");
+
+// Difference between blue and red flavors.
+// The two only differ for data that ends on a chunk boundary.
+let data = vec![0x55; 9728000];
+let red_hash = Ed2kRed::digest(&data);
+let blue_hash = Ed2kBlue::digest(&data);
+assert_eq!(format!("{red_hash:x}"), "49e80f377b7e4e706dbd3ecc89f39306");
+assert_eq!(format!("{blue_hash:x}"), "4127a47867b6110f0f86f2d9845fb374");
+```
