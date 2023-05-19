@@ -2,8 +2,11 @@
 name = "ed2k"
 version = "1.0.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "An implementation of the ED2K hash function"
+repository = "https://github.com/Kimundi/ed2k"
+license = "MIT OR Apache-2.0"
+keywords = ["hash", "ed2k", "digest", "algorithm"]
+categories = ["algorithms", "cryptography"]
 
 [dependencies]
 digest = "0.10"
