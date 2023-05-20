@@ -1,2 +1,6 @@
 /target
 /Cargo.lock
+/fuzzer/target
+/fuzzer/Cargo.lock
+/fuzzer/samples
+/fuzzer/out
